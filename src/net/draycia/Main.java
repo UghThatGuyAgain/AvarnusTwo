@@ -22,8 +22,8 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import spells.Spell;
-import spells.SpellBook;
+import net.draycia.spells.Spell;
+import net.draycia.spells.SpellBook;
 
 public class Main extends JavaPlugin implements Listener {
 

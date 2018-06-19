@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-import spells.Spell;
-import spells.SpellBook;
+import net.draycia.spells.Spell;
+import net.draycia.spells.SpellBook;
 
 public class AvarnusPlayer {
 
