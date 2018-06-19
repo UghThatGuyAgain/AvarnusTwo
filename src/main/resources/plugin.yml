@@ -1,0 +1,6 @@
+name: Avarnus
+version: 0.0.1
+description: Generic RPG Plugin
+author: Sulfurias/Draycia
+
+main: net.draycia.Main
