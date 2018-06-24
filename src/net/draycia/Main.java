@@ -1,8 +1,11 @@
 package net.draycia;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -10,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.commons.io.input.ClassLoaderObjectInputStream;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -32,24 +36,74 @@ public class Main extends JavaPlugin implements Listener {
 
     HashMap<UUID, AvarnusPlayer> players = new HashMap<UUID, AvarnusPlayer>();
 
+    URLClassLoader ucl;
+
     @Override
     public void onEnable() {
+        try {
+            this.getClassLoader().loadClass("net.draycia.spells.SpellBook");
+            this.getClassLoader().loadClass("net.draycia.spells.Spell");
+            this.getClassLoader().loadClass("net.draycia.Weapon");
 
-        this.loadClasses("\\plugins\\AvarnusNew\\Weapons\\", Weapon.class);
-        this.loadClasses("\\plugins\\AvarnusNew\\Spells\\", Spell.class);
+        } catch (ClassNotFoundException e1) {
+            e1.printStackTrace();
+        }
+
+        this.loadClasses("\\Spells\\", Spell.class);
+        this.loadClasses("\\Weapons\\", Weapon.class);
         System.out.println(this.weapons.toString());
 
         getServer().getPluginManager().registerEvents(this, this);
 
     }
 
+    @Override
+    public void onDisable() {
+        for (Map.Entry<UUID, AvarnusPlayer> entry : players.entrySet()) {
+            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + entry.getKey() + ".ser");
+
+            File pfParent = playerFile.getParentFile();
+
+            System.out.println(pfParent);
+
+            if (!pfParent.exists() && !pfParent.mkdirs()) {
+                System.out.println("Unable to save SpellBook for player with UUID " + entry.getKey());
+            }
+
+            try {
+                ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(playerFile));
+                oos.writeObject(entry.getValue().spellBook);
+                oos.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         if (!players.containsKey(e.getPlayer().getUniqueId())) {
-            // ArrayList<Spell> spellList = new ArrayList<Spell>(spells.values());
-            // SpellBook spellBook = new SpellBook(spellList);
-            // players.put(e.getPlayer().getUniqueId(), new
-            // AvarnusPlayer(e.getPlayer().getUniqueId(), spellBook));
+            HashMap<String, SpellBook> spellBook = new HashMap<String, SpellBook>();
+
+            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + e.getPlayer().getUniqueId() + ".ser");
+
+            if (playerFile.exists()) {
+                try {
+                    ClassLoaderObjectInputStream clois = new ClassLoaderObjectInputStream(ucl, new FileInputStream(playerFile));
+
+                    @SuppressWarnings("unchecked")
+                    HashMap<String, SpellBook> loadSpellBook = (HashMap<String, SpellBook>) clois.readObject();
+
+                    clois.close();
+                    spellBook = loadSpellBook;
+
+                } catch (IOException | ClassNotFoundException e1) {
+                    e1.printStackTrace();
+                }
+            }
+
+            players.put(e.getPlayer().getUniqueId(), new AvarnusPlayer(e.getPlayer().getUniqueId(), spellBook));
         }
         e.getPlayer().setGameMode(GameMode.CREATIVE);
         e.getPlayer().getInventory().clear();
@@ -73,17 +127,31 @@ public class Main extends JavaPlugin implements Listener {
             AvarnusPlayer avPlayer = players.get(player.getUniqueId());
 
             String weaponTag = Weapon.getWeaponTag(item);
-            if (weaponTag != null && !weaponTag.isEmpty())
-                avPlayer.mageSpells.get(0).cast(e.getPlayer());
+
+            if (weaponTag != null && !weaponTag.isEmpty()) {
+                HashMap<String, SpellBook> knownSpells = avPlayer.spellBook;
+                if (knownSpells.containsKey(weaponTag)) {
+                    SpellBook spellBook = knownSpells.get(weaponTag);
+                    spellBook.getCurrentSpell().cast(player);
+                }
+            }
 
             String spellTag = Spell.getSpellTag(item);
+
             if (spellTag != null && !spellTag.isEmpty()) {
                 for (Map.Entry<String, Weapon> entry : weapons.entrySet()) {
+
                     ArrayList<String> allowedSpells = entry.getValue().getAllowedSpells();
                     HashMap<String, SpellBook> knownSpells = avPlayer.spellBook;
-                    if (!allowedSpells.contains(spellTag))
-                        knownSpells.put(entry.getKey(), new SpellBook(new ArrayList<Spell>()));
-                    knownSpells.get(entry.getKey()).addSpell(spells.get(spellTag));
+
+                    if (allowedSpells.contains(spellTag)) {
+
+                        if (!knownSpells.containsKey(entry.getKey())) {
+                            knownSpells.put(entry.getKey(), new SpellBook(new ArrayList<Spell>()));
+                        }
+
+                        knownSpells.get(entry.getKey()).addSpell(spells.get(spellTag));
+                    }
                 }
             }
         }
@@ -91,7 +159,7 @@ public class Main extends JavaPlugin implements Listener {
 
     public void loadClasses(String dir, Class<?> type) {
         try {
-            File classDir = new File(new File("").getAbsolutePath() + dir);
+            File classDir = new File(this.getDataFolder().getAbsolutePath() + dir);
 
             if (!classDir.exists()) {
                 classDir.mkdirs();
@@ -101,7 +169,7 @@ public class Main extends JavaPlugin implements Listener {
             URL url = classDir.toURI().toURL();
             URL[] urls = new URL[] { url };
 
-            URLClassLoader cl = new URLClassLoader(urls, type.getClassLoader());
+            URLClassLoader ucl = new URLClassLoader(urls, this.getClassLoader());
 
             File[] classFiles = classDir.listFiles(new FilenameFilter() {
                 public boolean accept(File dir, String filename) {
@@ -110,23 +178,25 @@ public class Main extends JavaPlugin implements Listener {
             });
 
             if (classFiles.length == 0) {
-                cl.close();
+                ucl.close();
                 return;
             }
 
             for (File file : classFiles) {
-                Class<?> cls = cl.loadClass(file.getName().replaceFirst("[.][^.]+$", ""));
+                Class<?> cls = ucl.loadClass(file.getName().replaceFirst("[.][^.]+$", ""));
 
-                if (type == Weapon.class) {
-                    Weapon weapon = (Weapon) cls.newInstance();
-                    weapons.put(((Weapon) cls.newInstance()).getItemID(), (Weapon) cls.cast(weapon));
-                } else if (type == Spell.class) {
+                if (type == Spell.class) {
                     Spell spell = (Spell) cls.newInstance();
                     spells.put(((Spell) cls.newInstance()).getSpellID(), (Spell) cls.cast(spell));
+                    this.ucl = ucl;
+
+                } else if (type == Weapon.class) {
+                    Weapon weapon = (Weapon) cls.newInstance();
+                    weapons.put(((Weapon) cls.newInstance()).getItemID(), (Weapon) cls.cast(weapon));
                 }
             }
 
-            cl.close();
+            ucl.close();
 
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IOException e) {
             e.printStackTrace();

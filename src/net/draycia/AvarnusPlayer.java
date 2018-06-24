@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-import net.draycia.spells.Spell;
 import net.draycia.spells.SpellBook;
 
 public class AvarnusPlayer {
@@ -27,12 +26,6 @@ public class AvarnusPlayer {
 
     public ArrayList<Weapon> storedWeapons = new ArrayList<Weapon>();
     public int selectedWeapon = 0;
-
-    public ArrayList<Spell> mageSpells = new ArrayList<Spell>();
-    public int selectedMageSpell = 0;
-
-    public ArrayList<Spell> assassinSpells = new ArrayList<Spell>();
-    public int selectedAssassinSpell = 0;
 
     public HashMap<String, SpellBook> spellBook;
 }

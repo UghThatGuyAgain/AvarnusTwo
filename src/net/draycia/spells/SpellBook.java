@@ -1,8 +1,12 @@
 package net.draycia.spells;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 
-public class SpellBook {
+public class SpellBook implements Serializable {
+
+    private static final long serialVersionUID = -4589165254273153943L;
+
     public ArrayList<Spell> spells;
 
     private int currentSpell = 0;
