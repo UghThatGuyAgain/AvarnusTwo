@@ -1,5 +1,6 @@
 package net.draycia;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +10,9 @@ import org.bukkit.inventory.ItemStack;
 
 import net.minecraft.server.v1_12_R1.NBTTagCompound;
 
-public abstract class Weapon {
+public abstract class Weapon implements Serializable {
+
+    private static final long serialVersionUID = 133499723390131045L;
 
     public static final String TAG = "Draycia_69973";
 
@@ -24,6 +27,8 @@ public abstract class Weapon {
     public abstract void use(Player p);
 
     public abstract ArrayList<String> getAllowedSpells();
+
+    public abstract BarType getBarType();
 
     public ItemStack getProcessedItem() {
         ItemStack item = this.getItem();

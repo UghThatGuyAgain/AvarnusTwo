@@ -3,9 +3,9 @@ package net.draycia;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -14,14 +14,18 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.commons.io.input.ClassLoaderObjectInputStream;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarFlag;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -31,12 +35,12 @@ import net.draycia.spells.SpellBook;
 
 public class Main extends JavaPlugin implements Listener {
 
-    HashMap<String, Weapon> weapons = new HashMap<String, Weapon>();
-    HashMap<String, Spell> spells = new HashMap<String, Spell>();
+    private HashMap<String, Weapon> weapons = new HashMap<>();
+    private HashMap<String, Spell> spells = new HashMap<>();
 
-    HashMap<UUID, AvarnusPlayer> players = new HashMap<UUID, AvarnusPlayer>();
+    private HashMap<UUID, AvarnusPlayer> players = new HashMap<>();
 
-    URLClassLoader ucl;
+    private URLClassLoader ucl;
 
     @Override
     public void onEnable() {
@@ -54,6 +58,8 @@ public class Main extends JavaPlugin implements Listener {
         System.out.println(this.weapons.toString());
 
         getServer().getPluginManager().registerEvents(this, this);
+
+        this.startHealthCounter();
 
     }
 
@@ -83,37 +89,68 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
-        if (!players.containsKey(e.getPlayer().getUniqueId())) {
-            HashMap<String, SpellBook> spellBook = new HashMap<String, SpellBook>();
+        Player player = e.getPlayer();
+        if (!players.containsKey(player.getUniqueId())) {
+            HashMap<String, SpellBook> spellBook = new HashMap<>();
 
-            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + e.getPlayer().getUniqueId() + ".ser");
+            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + player.getUniqueId() + ".ser");
 
-            if (playerFile.exists()) {
-                try {
-                    ClassLoaderObjectInputStream clois = new ClassLoaderObjectInputStream(ucl, new FileInputStream(playerFile));
+            if (playerFile.exists()) try {
+                ClassLoaderObjectInputStream objInputStream = new ClassLoaderObjectInputStream(ucl, new FileInputStream(playerFile));
 
-                    @SuppressWarnings("unchecked")
-                    HashMap<String, SpellBook> loadSpellBook = (HashMap<String, SpellBook>) clois.readObject();
+                @SuppressWarnings("unchecked")
+                HashMap<String, SpellBook> loadSpellBook = (HashMap<String, SpellBook>) objInputStream.readObject();
 
-                    clois.close();
-                    spellBook = loadSpellBook;
+                objInputStream.close();
+                spellBook = loadSpellBook;
 
-                } catch (IOException | ClassNotFoundException e1) {
-                    e1.printStackTrace();
-                }
+            } catch (IOException | ClassNotFoundException e1) {
+                e1.printStackTrace();
             }
 
-            players.put(e.getPlayer().getUniqueId(), new AvarnusPlayer(e.getPlayer().getUniqueId(), spellBook));
+            players.put(player.getUniqueId(), new AvarnusPlayer(player.getUniqueId(), spellBook));
         }
-        e.getPlayer().setGameMode(GameMode.CREATIVE);
-        e.getPlayer().getInventory().clear();
-        e.getPlayer().getInventory().addItem(weapons.get("DrayciaAvarnus").getProcessedItem());
-        e.getPlayer().getInventory().addItem(spells.get("DrayciaFireball").getSpellBook());
-    }
 
-    @EventHandler
-    public void onLeave(PlayerQuitEvent e) {
+        BossBar hBar = this.getServer().createBossBar(null, BarColor.RED, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
+        hBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        hBar.setProgress(player.getHealth() / 20);
+        hBar.addPlayer(player);
 
+        BossBar mBar = this.getServer().createBossBar(null, BarColor.BLUE, BarStyle.SOLID, BarFlag.PLAY_BOSS_MUSIC);
+        mBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        mBar.addPlayer(player);
+        mBar.setVisible(false);
+
+        BossBar eBar = this.getServer().createBossBar(null, BarColor.GREEN, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
+        eBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        eBar.addPlayer(player);
+        eBar.setVisible(false);
+
+        BossBar rBar = this.getServer().createBossBar(null, BarColor.YELLOW, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
+        rBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        rBar.addPlayer(player);
+        rBar.setVisible(false);
+
+        BossBar vBar = this.getServer().createBossBar(null, BarColor.PURPLE, BarStyle.SEGMENTED_6, BarFlag.PLAY_BOSS_MUSIC);
+        vBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        vBar.addPlayer(player);
+        vBar.setVisible(false);
+
+        AvarnusPlayer avarnusPlayer = players.get(player.getUniqueId());
+
+        HashMap<String, BossBar> bossBars = avarnusPlayer.bossBars;
+
+        bossBars.put("health", hBar);
+        bossBars.put("mana", mBar);
+        bossBars.put("energy", eBar);
+        bossBars.put("rage", rBar);
+        bossBars.put("void", vBar);
+
+        player.setGameMode(GameMode.CREATIVE);
+        player.getInventory().clear();
+        player.getInventory().addItem(weapons.get("DrayciaAvarnus").getProcessedItem());
+        player.getInventory().addItem(weapons.get("DrayciaStrikers").getProcessedItem());
+        player.getInventory().addItem(spells.get("DrayciaFireball").getSpellBook());
     }
 
     @EventHandler
@@ -133,6 +170,16 @@ public class Main extends JavaPlugin implements Listener {
                 if (knownSpells.containsKey(weaponTag)) {
                     SpellBook spellBook = knownSpells.get(weaponTag);
                     spellBook.getCurrentSpell().cast(player);
+
+                    if (weapons.containsKey(weaponTag)) {
+                        System.out.println("Weapon contains key.");
+                        Weapon weapon = weapons.get(weaponTag);
+                        String barType = weapon.getBarType().toString();
+                        ResourceBar resourceBar = avPlayer.resources.get(barType);
+                        double newVal = resourceBar.current + 5;
+                        resourceBar.current = newVal > resourceBar.cap ? resourceBar.cap : newVal;
+                        System.out.println("Bar current is " + avPlayer.resources.get(barType).current);
+                    }
                 }
             }
 
@@ -147,7 +194,7 @@ public class Main extends JavaPlugin implements Listener {
                     if (allowedSpells.contains(spellTag)) {
 
                         if (!knownSpells.containsKey(entry.getKey())) {
-                            knownSpells.put(entry.getKey(), new SpellBook(new ArrayList<Spell>()));
+                            knownSpells.put(entry.getKey(), new SpellBook(new ArrayList<>()));
                         }
 
                         knownSpells.get(entry.getKey()).addSpell(spells.get(spellTag));
@@ -157,12 +204,36 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    public void loadClasses(String dir, Class<?> type) {
+    private void startHealthCounter() {
+        Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            for (Player player : this.getServer().getOnlinePlayers()) {
+                AvarnusPlayer avarnusPlayer = players.get(player.getUniqueId());
+
+                BossBar hBar = avarnusPlayer.bossBars.get("health");
+                hBar.setProgress(player.getHealth() / 20);
+
+                avarnusPlayer.hideAllResourceBars();
+                avarnusPlayer.handleResourceRegen();
+
+                String weaponTag = Weapon.getWeaponTag(player.getInventory().getItemInMainHand());
+                if (weaponTag != null && !weaponTag.isEmpty() && weapons.containsKey(weaponTag)) {
+                    Weapon weapon = weapons.get(weaponTag);
+                    String barType = weapon.getBarType().toString();
+                    avarnusPlayer.bossBars.get(barType).setVisible(true);
+                }
+            }
+        }, 0L, 5L);
+    }
+
+    private void loadClasses(String dir, Class<?> type) {
         try {
             File classDir = new File(this.getDataFolder().getAbsolutePath() + dir);
 
             if (!classDir.exists()) {
-                classDir.mkdirs();
+                boolean dirsMade = classDir.mkdirs();
+                if (!dirsMade) {
+                    System.out.println("Failed to create the directory [" + dir + "]");
+                }
                 return;
             }
 
@@ -171,34 +242,27 @@ public class Main extends JavaPlugin implements Listener {
 
             URLClassLoader ucl = new URLClassLoader(urls, this.getClassLoader());
 
-            File[] classFiles = classDir.listFiles(new FilenameFilter() {
-                public boolean accept(File dir, String filename) {
-                    return filename.endsWith(".class");
-                }
-            });
+            File[] classFiles = classDir.listFiles((File directory, String filename) -> filename.endsWith(".class"));
 
-            if (classFiles.length == 0) {
-                ucl.close();
-                return;
-            }
+            if (classFiles != null && classFiles.length > 0) {
+                for (File file : classFiles) {
+                    Class<?> cls = ucl.loadClass(file.getName().replaceFirst("[.][^.]+$", ""));
 
-            for (File file : classFiles) {
-                Class<?> cls = ucl.loadClass(file.getName().replaceFirst("[.][^.]+$", ""));
+                    if (type == Spell.class) {
+                        Spell spell = (Spell) cls.getDeclaredConstructor().newInstance();
+                        spells.put(((Spell) cls.getDeclaredConstructor().newInstance()).getSpellID(), (Spell) cls.cast(spell));
+                        this.ucl = ucl;
 
-                if (type == Spell.class) {
-                    Spell spell = (Spell) cls.newInstance();
-                    spells.put(((Spell) cls.newInstance()).getSpellID(), (Spell) cls.cast(spell));
-                    this.ucl = ucl;
-
-                } else if (type == Weapon.class) {
-                    Weapon weapon = (Weapon) cls.newInstance();
-                    weapons.put(((Weapon) cls.newInstance()).getItemID(), (Weapon) cls.cast(weapon));
+                    } else if (type == Weapon.class) {
+                        Weapon weapon = (Weapon) cls.getDeclaredConstructor().newInstance();
+                        weapons.put(((Weapon) cls.getDeclaredConstructor().newInstance()).getItemID(), (Weapon) cls.cast(weapon));
+                    }
                 }
             }
 
             ucl.close();
 
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IOException e) {
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IOException | NoSuchMethodException | InvocationTargetException e) {
             e.printStackTrace();
         }
     }
