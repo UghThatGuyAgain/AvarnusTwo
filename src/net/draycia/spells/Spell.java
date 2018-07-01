@@ -1,13 +1,12 @@
 package net.draycia.spells;
 
-import java.io.Serializable;
-
+import net.minecraft.server.v1_12_R1.NBTTagCompound;
 import org.bukkit.Material;
 import org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import net.minecraft.server.v1_12_R1.NBTTagCompound;
+import java.io.Serializable;
 
 public abstract class Spell implements Serializable {
     private static final long serialVersionUID = 3577290846703799661L;
@@ -18,7 +17,7 @@ public abstract class Spell implements Serializable {
 
     public abstract String getName();
 
-    public abstract void cast(Player p);
+    public abstract void cast(Player p, int duration, int damage, int range);
 
     public ItemStack getSpellBook() {
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK, 1);

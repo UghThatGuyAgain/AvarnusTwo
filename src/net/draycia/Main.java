@@ -1,10 +1,31 @@
 package net.draycia;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import net.draycia.commands.CommandBarColor;
+import net.draycia.commands.CommandBarStyle;
+import net.draycia.spells.Spell;
+import net.draycia.spells.SpellBook;
+import org.apache.commons.io.input.ClassLoaderObjectInputStream;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarFlag;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.ItemDespawnEvent;
+import org.bukkit.event.player.*;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scoreboard.Scoreboard;
+
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -13,37 +34,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.apache.commons.io.input.ClassLoaderObjectInputStream;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarFlag;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.java.JavaPlugin;
-
-import net.draycia.spells.Spell;
-import net.draycia.spells.SpellBook;
-
 public class Main extends JavaPlugin implements Listener {
+
+    public static Main instance;
 
     private HashMap<String, Weapon> weapons = new HashMap<>();
     private HashMap<String, Spell> spells = new HashMap<>();
 
-    private HashMap<UUID, AvarnusPlayer> players = new HashMap<>();
+    public HashMap<UUID, AvarnusPlayer> players = new HashMap<>();
 
     private URLClassLoader ucl;
 
+    static Scoreboard scoreboard;
+
     @Override
     public void onEnable() {
+        Main.instance = this;
+        scoreboard = Bukkit.getServer().getScoreboardManager().getMainScoreboard();
         try {
             this.getClassLoader().loadClass("net.draycia.spells.SpellBook");
             this.getClassLoader().loadClass("net.draycia.spells.Spell");
@@ -55,86 +62,40 @@ public class Main extends JavaPlugin implements Listener {
 
         this.loadClasses("\\Spells\\", Spell.class);
         this.loadClasses("\\Weapons\\", Weapon.class);
-        System.out.println(this.weapons.toString());
+
+        Main.scoreboard.registerNewTeam("StunStatus");
+        Main.scoreboard.getTeam("StunStatus").setSuffix("STUNNED! ");
+        Main.scoreboard.getTeam("StunStatus").setPrefix(ChatColor.RED.toString());
 
         getServer().getPluginManager().registerEvents(this, this);
 
+        this.getCommand("barcolor").setExecutor(new CommandBarColor(this));
+        this.getCommand("barstyle").setExecutor(new CommandBarStyle(this));
+
         this.startHealthCounter();
+        this.handleStatusEffects();
+        this.startSaveTimer();
 
     }
 
     @Override
     public void onDisable() {
-        for (Map.Entry<UUID, AvarnusPlayer> entry : players.entrySet()) {
-            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + entry.getKey() + ".ser");
-
-            File pfParent = playerFile.getParentFile();
-
-            System.out.println(pfParent);
-
-            if (!pfParent.exists() && !pfParent.mkdirs()) {
-                System.out.println("Unable to save SpellBook for player with UUID " + entry.getKey());
-            }
-
-            try {
-                ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(playerFile));
-                oos.writeObject(entry.getValue().spellBook);
-                oos.close();
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        for (AvarnusPlayer avarnusPlayer : players.values()) {
+            this.savePlayer(avarnusPlayer);
         }
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         Player player = e.getPlayer();
-        if (!players.containsKey(player.getUniqueId())) {
-            HashMap<String, SpellBook> spellBook = new HashMap<>();
 
-            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + player.getUniqueId() + ".ser");
+        this.createPlayer(player);
 
-            if (playerFile.exists()) try {
-                ClassLoaderObjectInputStream objInputStream = new ClassLoaderObjectInputStream(ucl, new FileInputStream(playerFile));
-
-                @SuppressWarnings("unchecked")
-                HashMap<String, SpellBook> loadSpellBook = (HashMap<String, SpellBook>) objInputStream.readObject();
-
-                objInputStream.close();
-                spellBook = loadSpellBook;
-
-            } catch (IOException | ClassNotFoundException e1) {
-                e1.printStackTrace();
-            }
-
-            players.put(player.getUniqueId(), new AvarnusPlayer(player.getUniqueId(), spellBook));
-        }
-
-        BossBar hBar = this.getServer().createBossBar(null, BarColor.RED, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
-        hBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
-        hBar.setProgress(player.getHealth() / 20);
-        hBar.addPlayer(player);
-
-        BossBar mBar = this.getServer().createBossBar(null, BarColor.BLUE, BarStyle.SOLID, BarFlag.PLAY_BOSS_MUSIC);
-        mBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
-        mBar.addPlayer(player);
-        mBar.setVisible(false);
-
-        BossBar eBar = this.getServer().createBossBar(null, BarColor.GREEN, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
-        eBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
-        eBar.addPlayer(player);
-        eBar.setVisible(false);
-
-        BossBar rBar = this.getServer().createBossBar(null, BarColor.YELLOW, BarStyle.SEGMENTED_20, BarFlag.PLAY_BOSS_MUSIC);
-        rBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
-        rBar.addPlayer(player);
-        rBar.setVisible(false);
-
-        BossBar vBar = this.getServer().createBossBar(null, BarColor.PURPLE, BarStyle.SEGMENTED_6, BarFlag.PLAY_BOSS_MUSIC);
-        vBar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
-        vBar.addPlayer(player);
-        vBar.setVisible(false);
+        BossBar hBar = this.createBossBar("Health", BarColor.RED,    BarStyle.SEGMENTED_20, player);
+        BossBar mBar = this.createBossBar("Mana",   BarColor.BLUE,   BarStyle.SOLID,        player);
+        BossBar eBar = this.createBossBar("Energy", BarColor.GREEN,  BarStyle.SEGMENTED_20, player);
+        BossBar rBar = this.createBossBar("Rage",   BarColor.YELLOW, BarStyle.SEGMENTED_20, player);
+        BossBar vBar = this.createBossBar("Void",   BarColor.PURPLE, BarStyle.SEGMENTED_6,  player);
 
         AvarnusPlayer avarnusPlayer = players.get(player.getUniqueId());
 
@@ -146,11 +107,72 @@ public class Main extends JavaPlugin implements Listener {
         bossBars.put("rage", rBar);
         bossBars.put("void", vBar);
 
-        player.setGameMode(GameMode.CREATIVE);
+        this.updateBarColors(avarnusPlayer);
+        this.updateBarStyles(avarnusPlayer);
+
+        player.setGameMode(GameMode.SURVIVAL);
+
         player.getInventory().clear();
         player.getInventory().addItem(weapons.get("DrayciaAvarnus").getProcessedItem());
         player.getInventory().addItem(weapons.get("DrayciaStrikers").getProcessedItem());
         player.getInventory().addItem(spells.get("DrayciaFireball").getSpellBook());
+
+        avarnusPlayer.stun(5);
+        avarnusPlayer.poison(5, 1);
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent e) {
+        AvarnusPlayer avPlayer = players.get(e.getPlayer().getUniqueId());
+        if (avPlayer.isStunned) e.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onSlotChange(PlayerItemHeldEvent e) {
+        Player player = e.getPlayer();
+        AvarnusPlayer avarnusPlayer = players.get(player.getUniqueId());
+
+        if (player.isSneaking()) {
+
+            ItemStack item = player.getInventory().getItemInMainHand();
+            String weaponTag = Weapon.getWeaponTag(item);
+
+            if (weaponTag == null || weaponTag.isEmpty())
+                return;
+
+            int oldSlot = e.getPreviousSlot();
+            int newSlot = e.getNewSlot();
+
+            if (oldSlot - newSlot == 1 || (oldSlot == 0 && newSlot == 8)) {
+                e.setCancelled(true);
+            }
+
+            if (newSlot - oldSlot == 1 || (oldSlot == 8 && newSlot == 0)) {
+                e.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler
+    public void itemDropEvent(PlayerDropItemEvent event) {
+        Item it = event.getItemDrop();
+        ItemStack item = it.getItemStack();
+        ItemMeta im = item.getItemMeta();
+
+        if (Weapon.getWeaponTag(item) != null) {
+            it.setInvulnerable(true);
+
+            if (im.hasDisplayName()) {
+                it.setCustomName(im.getDisplayName());
+                it.setCustomNameVisible(true);
+            }
+        }
+    }
+
+    @EventHandler
+    public void itemDespawnEvent(ItemDespawnEvent e) {
+        if (Weapon.getWeaponTag(e.getEntity().getItemStack()) != null)
+            e.setCancelled(true);
     }
 
     @EventHandler
@@ -169,7 +191,7 @@ public class Main extends JavaPlugin implements Listener {
                 HashMap<String, SpellBook> knownSpells = avPlayer.spellBook;
                 if (knownSpells.containsKey(weaponTag)) {
                     SpellBook spellBook = knownSpells.get(weaponTag);
-                    spellBook.getCurrentSpell().cast(player);
+                    spellBook.getCurrentSpell().cast(player, 5 * 20, 5, 40);
 
                     if (weapons.containsKey(weaponTag)) {
                         System.out.println("Weapon contains key.");
@@ -204,6 +226,95 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
+    private void handleSpellDisplay() {
+        Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+
+        }, 0, 20L);
+    }
+
+    private BossBar createBossBar(String title, BarColor color, BarStyle style, Player player) {
+        BossBar bar = this.getServer().createBossBar(title, color, style, BarFlag.PLAY_BOSS_MUSIC);
+        bar.removeFlag(BarFlag.PLAY_BOSS_MUSIC);
+        bar.addPlayer(player);
+        bar.setVisible(false);
+        return bar;
+    }
+
+    public void updateBarColors(AvarnusPlayer avarnusPlayer) {
+        for (Map.Entry<String, BarColor> entry : avarnusPlayer.customBarColors.entrySet()) {
+            BossBar bossBar = avarnusPlayer.bossBars.get(entry.getKey());
+            bossBar.setColor(entry.getValue());
+        }
+    }
+
+    public void updateBarStyles(AvarnusPlayer avarnusPlayer) {
+        for (Map.Entry<String, BarStyle> entry : avarnusPlayer.customBarStyles.entrySet()) {
+            BossBar bossBar = avarnusPlayer.bossBars.get(entry.getKey());
+            bossBar.setStyle(entry.getValue());
+        }
+    }
+
+    private void startSaveTimer() {
+        Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            for (AvarnusPlayer avarnusPlayer : players.values()) {
+                this.savePlayer(avarnusPlayer);
+            }
+        }, 12000, 12000);
+    }
+
+//    private void savePlayer(AvarnusPlayer avarnusPlayer) {
+//        File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\SpellBook\\" + avarnusPlayer.uuid + ".ser");
+//
+//        File pfParent = playerFile.getParentFile();
+//
+//        if (!pfParent.exists() && !pfParent.mkdirs()) {
+//            System.out.println("Unable to save SpellBook for player with UUID " + avarnusPlayer.uuid);
+//        }
+//
+//        try {
+//            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(playerFile));
+//            oos.writeObject(avarnusPlayer.spellBook);
+//            oos.close();
+//
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
+    private void createPlayer(Player player) {
+        if (!players.containsKey(player.getUniqueId())) {
+            File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\" + player.getUniqueId() + ".ser");
+
+            if (playerFile.exists()) try {
+                ClassLoaderObjectInputStream objInputStream = new ClassLoaderObjectInputStream(ucl, new FileInputStream(playerFile));
+
+                @SuppressWarnings("unchecked")
+                AvarnusPlayer loadAvarnusPlayer = (AvarnusPlayer) objInputStream.readObject();
+
+                objInputStream.close();
+
+                players.put(player.getUniqueId(), loadAvarnusPlayer);
+            } catch (IOException | ClassNotFoundException e1) {
+                e1.printStackTrace();
+            }
+        }
+    }
+
+    private void savePlayer(AvarnusPlayer avarnusPlayer) {
+        File playerFile = new File(this.getDataFolder().getAbsolutePath() + "\\PlayerData\\" + avarnusPlayer.uuid + ".ser");
+        File parentFile = playerFile.getParentFile();
+
+        if (!parentFile.exists() && !parentFile.mkdirs()) System.out.println("Unable to save SpellBook for player with UUID " + avarnusPlayer.uuid);
+
+        try {
+            ObjectOutputStream objectOutStream = new ObjectOutputStream(new FileOutputStream(playerFile));
+            objectOutStream.writeObject(avarnusPlayer);
+            objectOutStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void startHealthCounter() {
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
             for (Player player : this.getServer().getOnlinePlayers()) {
@@ -220,6 +331,26 @@ public class Main extends JavaPlugin implements Listener {
                     Weapon weapon = weapons.get(weaponTag);
                     String barType = weapon.getBarType().toString();
                     avarnusPlayer.bossBars.get(barType).setVisible(true);
+                }
+            }
+        }, 0L, 5L);
+    }
+
+    private void handleStatusEffects() {
+        Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            for (Player player : this.getServer().getOnlinePlayers()) {
+                AvarnusPlayer avarnusPlayer = players.get(player.getUniqueId());
+
+                if (!avarnusPlayer.isStunned)
+                    return;
+
+                if (avarnusPlayer.stunDuration < .25) {
+                    avarnusPlayer.isStunned = false;
+                    player.setGlowing(false);
+                    //noinspection deprecation
+                    Main.scoreboard.getTeam("StunStatus").removePlayer(player);
+                } else if (avarnusPlayer.stunDuration >= .25) {
+                    avarnusPlayer.stunDuration -= .25;
                 }
             }
         }, 0L, 5L);

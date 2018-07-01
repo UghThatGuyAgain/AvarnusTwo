@@ -1,14 +1,13 @@
 package net.draycia;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-
+import net.minecraft.server.v1_12_R1.NBTTagCompound;
 import org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import net.minecraft.server.v1_12_R1.NBTTagCompound;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class Weapon implements Serializable {
 

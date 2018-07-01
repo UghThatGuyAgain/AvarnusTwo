@@ -4,3 +4,11 @@ description: Generic RPG Plugin
 author: Sulfurias/Draycia
 
 main: net.draycia.Main
+
+commands:
+  barcolor:
+    description: Changes the color of the specified resource bar. Valid colors: BLUE, GREEN, PINK, PURPLE, RED, WHITE, YELLOW
+    usage: /barcolor <type> <color>
+  barstyle:
+    description: Changes the style of the specified resource bar. Valid styles: S0LID, SEGMENTED_6, SEGMENTED_10, SEGMENTED_12, SEGMENTED_20.
+    usage: /barstyle <type> <style>
