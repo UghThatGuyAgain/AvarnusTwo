@@ -1,18 +1,19 @@
 package net.draycia;
 
 import net.draycia.spells.SpellBook;
+import net.draycia.weapons.Weapon;
+import net.draycia.weapons.WeaponStorage;
 import org.bukkit.Bukkit;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 public class AvarnusPlayer implements Serializable {
@@ -36,6 +37,8 @@ public class AvarnusPlayer implements Serializable {
 
     public HashMap<String, BarColor> customBarColors = new HashMap<>();
     public HashMap<String, BarStyle> customBarStyles = new HashMap<>();
+    public boolean showBarsWhenSneaking = false;
+    public boolean showHealthBar = true;
 
     HashMap<String, ResourceBar> resources = new HashMap<>();
 
@@ -43,8 +46,7 @@ public class AvarnusPlayer implements Serializable {
 
     public transient HashMap<String, BossBar> bossBars = new HashMap<>();
 
-    public ArrayList<Weapon> storedWeapons = new ArrayList<>();
-    public int selectedWeapon = 0;
+    public WeaponStorage weapons = new WeaponStorage();
 
     void stun(double duration) {
         if (stunDuration < duration) {
@@ -65,11 +67,11 @@ public class AvarnusPlayer implements Serializable {
         for (BossBar value : this.bossBars.values()) {
             value.setVisible(false);
         }
-        this.bossBars.get("health").setVisible(true);
+        if (this.showHealthBar) this.bossBars.get("health").setVisible(true);
     }
 
-    public void handleResourceRegen() {
-        for (Map.Entry<String, ResourceBar> entry : this.resources.entrySet()) {
+    void handleResourceRegen() {
+        for (var entry : this.resources.entrySet()) {
             ResourceBar resourceBar = entry.getValue();
 
             double regen = resourceBar.regen / 4;
@@ -82,5 +84,32 @@ public class AvarnusPlayer implements Serializable {
 
             this.bossBars.get(entry.getKey()).setProgress(resourceBar.current / resourceBar.cap);
         }
+    }
+
+    void storeWeapon(Player player) {
+        ItemStack itemStack = player.getInventory().getItemInMainHand();
+        String itemTag = Weapon.getWeaponTag(itemStack);
+        if (itemTag == null || itemTag.isEmpty()) return;
+        if (!Main.instance.weapons.containsKey(itemTag)) return;
+        Weapon weapon = Main.instance.weapons.get(itemTag);
+        this.weapons.storeWeapon(weapon);
+        player.getInventory().setItemInMainHand(null);
+    }
+
+    void getWeapon(Player player) {
+        ItemStack itemStack = this.weapons.getWeapon().getProcessedItem();
+        player.getInventory().setItemInMainHand(itemStack);
+    }
+
+    public void nextWeapon() {
+
+    }
+
+    public void previousWeapon() {
+
+    }
+
+    public void updateWeapon() {
+
     }
 }

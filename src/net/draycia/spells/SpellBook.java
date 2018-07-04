@@ -21,8 +21,7 @@ public class SpellBook implements Serializable {
     }
 
     public void removeSpell(Spell spell) {
-        if (spells.contains(spell))
-            spells.remove(spell);
+        spells.remove(spell);
     }
 
     public Spell getCurrentSpell() {

@@ -4,10 +4,12 @@ import net.draycia.commands.CommandBarColor;
 import net.draycia.commands.CommandBarStyle;
 import net.draycia.spells.Spell;
 import net.draycia.spells.SpellBook;
+import net.draycia.weapons.Weapon;
 import org.apache.commons.io.input.ClassLoaderObjectInputStream;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarFlag;
 import org.bukkit.boss.BarStyle;
@@ -38,7 +40,7 @@ public class Main extends JavaPlugin implements Listener {
 
     public static Main instance;
 
-    private HashMap<String, Weapon> weapons = new HashMap<>();
+    public HashMap<String, Weapon> weapons = new HashMap<>();
     private HashMap<String, Spell> spells = new HashMap<>();
 
     public HashMap<UUID, AvarnusPlayer> players = new HashMap<>();
@@ -54,7 +56,7 @@ public class Main extends JavaPlugin implements Listener {
         try {
             this.getClassLoader().loadClass("net.draycia.spells.SpellBook");
             this.getClassLoader().loadClass("net.draycia.spells.Spell");
-            this.getClassLoader().loadClass("net.draycia.Weapon");
+            this.getClassLoader().loadClass("net.draycia.weapons.Weapon");
 
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
@@ -137,18 +139,29 @@ public class Main extends JavaPlugin implements Listener {
             ItemStack item = player.getInventory().getItemInMainHand();
             String weaponTag = Weapon.getWeaponTag(item);
 
-            if (weaponTag == null || weaponTag.isEmpty())
-                return;
-
             int oldSlot = e.getPreviousSlot();
             int newSlot = e.getNewSlot();
 
             if (oldSlot - newSlot == 1 || (oldSlot == 0 && newSlot == 8)) {
                 e.setCancelled(true);
+                // If hand is empty, change selected weapon
+                if (item == null || item.getType() == Material.AIR) {
+                    avarnusPlayer.weapons.previousWeapon();
+                    // Display new weapon here
+                } else {
+                    // Hand isn't empty, do spell changing
+                }
             }
 
             if (newSlot - oldSlot == 1 || (oldSlot == 8 && newSlot == 0)) {
                 e.setCancelled(true);
+                // If hand is empty, change selected weapon
+                if (item == null || item.getType() == Material.AIR) {
+                    avarnusPlayer.weapons.nextWeapon();
+                    // Display new weapon here
+                } else {
+                    // Hand isn't empty, do spell changing
+                }
             }
         }
     }
@@ -180,14 +193,29 @@ public class Main extends JavaPlugin implements Listener {
         if (!e.getHand().equals(EquipmentSlot.HAND))
             return;
 
-        if (e.getAction().equals(Action.RIGHT_CLICK_AIR)) {
-            Player player = e.getPlayer();
-            ItemStack item = player.getInventory().getItemInMainHand();
-            AvarnusPlayer avPlayer = players.get(player.getUniqueId());
+        Player player = e.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        AvarnusPlayer avPlayer = players.get(player.getUniqueId());
 
+        // Handle obtaining weapons from storage
+        if (e.getAction().equals(Action.LEFT_CLICK_AIR)) {
+            if (player.isSneaking()) {
+                if (item == null || item.getType() == Material.AIR) {
+                    avPlayer.getWeapon(player);
+                }
+            }
+        }
+
+        if (e.getAction().equals(Action.RIGHT_CLICK_AIR)) {
             String weaponTag = Weapon.getWeaponTag(item);
 
             if (weaponTag != null && !weaponTag.isEmpty()) {
+                // Handle storing weapons in storage
+                if (player.isSneaking()) {
+                    avPlayer.storeWeapon(player);
+                }
+
+                // Handle spell casting
                 HashMap<String, SpellBook> knownSpells = avPlayer.spellBook;
                 if (knownSpells.containsKey(weaponTag)) {
                     SpellBook spellBook = knownSpells.get(weaponTag);
@@ -205,6 +233,7 @@ public class Main extends JavaPlugin implements Listener {
                 }
             }
 
+            // Handle spell book reading
             String spellTag = Spell.getSpellTag(item);
 
             if (spellTag != null && !spellTag.isEmpty()) {
@@ -228,7 +257,9 @@ public class Main extends JavaPlugin implements Listener {
 
     private void handleSpellDisplay() {
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            for (Player player : this.getServer().getOnlinePlayers()) {
 
+            }
         }, 0, 20L);
     }
 
